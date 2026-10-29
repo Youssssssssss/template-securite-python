@@ -10,6 +10,10 @@ packages = [
   { include = "tp2", from = "src" },
   { include = "tp3", from = "src" },
 ]
+# Données embarquées (wordlist de fuzzing du TP3), ouvertes par chemin relatif.
+include = [
+  { path = "src/tp3/utils/wordlist.txt", format = ["sdist", "wheel"] },
+]
 
 [tool.poetry.dependencies]
 python = "^3.11"
