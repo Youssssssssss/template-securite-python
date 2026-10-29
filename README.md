@@ -94,3 +94,49 @@ Les logs sont écrits sur la sortie d'erreur.
 ```bash
 poetry run pytest tests/tp1
 ```
+
+## TP3 - Breach the target
+
+Exploit automatisé en deux phases : web (fuzzing + CAPTCHA) puis réseau
+(décodage chronométré). Affiche les deux drapeaux.
+
+### Lancement
+
+```bash
+poetry run tp3 --target http://localhost:8080
+```
+
+Sortie attendue :
+
+```
+[+] FLAG1: ESGI{web_...}
+[+] FLAG_FINAL: ESGI{chain_...}
+```
+
+### Fonctionnement
+
+| Étape | Fichier | Rôle |
+|---|---|---|
+| Fuzzing | `utils/session.py` | `find_hidden_endpoint` teste la wordlist embarquée (`utils/wordlist.txt`) et retient la page interne (200 + formulaire CAPTCHA) |
+| CAPTCHA | `utils/captcha.py` | télécharge `/captcha.png` (cookie de session partagé), prétraite (PIL : gris, agrandissement, seuillage, débruitage) et lit le code (pytesseract, vote multi-seuils, ~95 % au 1er essai) |
+| Soumission | `utils/session.py` | `Session` poste le code, parse `{flag1, host, port, key}`, réessaie l'OCR jusqu'à 12 fois |
+| Réseau | `utils/netcode.py` | connexion TCP, boucle base64→XOR(clé) sous 5 s/round, renvoie le flag final |
+
+La wordlist est embarquée et ouverte par un chemin **relatif au code**
+(`Path(__file__).parent / "wordlist.txt"`), l'exploit fonctionne donc depuis
+un répertoire de travail vide et sans accès Internet (contraintes de
+l'instance hébergée). Si l'hôte TCP annoncé est une boucle locale, l'exploit
+bascule sur l'hôte du `--target`.
+
+### Cible de développement (local)
+
+```bash
+docker load -i tp3-target.tar.gz
+docker compose up      # Web :8080, TCP :9090, drapeaux factices
+```
+
+### Tests
+
+```bash
+poetry run pytest tests/tp3
+```
