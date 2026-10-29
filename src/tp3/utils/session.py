@@ -1,55 +1,49 @@
+import re
+import requests
 from src.tp3.utils.captcha import Captcha
 
 
+class CaptchaError(RuntimeError):
+    pass
+
+
 class Session:
-    """
-    Class representing a session to solve a captcha and submit a flag.
+    FLAG_RE = re.compile(r"ESGI\{[^}]+\}")
 
-    Attributes:
-        url (str): The URL of the captcha.
-        captcha_value (str): The value of the solved captcha.
-        flag_value (str): The value of the flag to submit.
-        valid_flag (str): The valid flag obtained after processing the response.
-    """
-
-    def __init__(self, url):
-        """
-        Initializes a new session with the given URL.
-
-        Args:
-            url (str): The URL of the captcha.
-        """
-        self.url = url
+    def __init__(self, url: str, max_attempts: int = 5):
+        self.url = url.rstrip("/")
+        self.http = requests.Session()
+        self.max_attempts = max_attempts
         self.captcha_value = ""
-        self.flag_value = ""
         self.valid_flag = ""
+        self.reveal = {}
 
-    def prepare_request(self):
-        """
-        Prepares the request for sending by capturing and solving the captcha.
-        """
-        captcha = Captcha(self.url)
+    def _attempt(self) -> str | None:
+        captcha = Captcha(self.url, http=self.http)
         captcha.capture()
         captcha.solve()
-
         self.captcha_value = captcha.get_value()
-        self.flag_value = "FIXME"
 
-    def submit_request(self):
-        """
-        Sends the flag and captcha.
-        """
+        resp = self.http.post(
+            f"{self.url}/submit",                  # endpoint à adapter
+            data={"captcha": self.captcha_value},
+            timeout=5,
+        )
+        resp.raise_for_status()
 
-    def process_response(self):
-        """
-        Processes the response.
-        """
+        m = self.FLAG_RE.search(resp.text)
+        if m:
+            # self.reveal = parse_reveal(resp.text)  # host, port, key
+            return m.group(0)
+        return None
 
-    def get_flag(self):
-        """
-        Returns the valid flag.
+    def run(self) -> str:
+        for _ in range(self.max_attempts):
+            flag = self._attempt()
+            if flag:
+                self.valid_flag = flag
+                return flag
+        raise CaptchaError(f"échec après {self.max_attempts} essais")
 
-        Returns:
-            str: The valid flag.
-        """
+    def get_flag(self) -> str:
         return self.valid_flag
