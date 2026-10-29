@@ -4,9 +4,16 @@
 """
 
 import argparse
+import base64
+import re
+import socket
 
-from tp3.utils.config import logger
-from tp3.session import Session          # notre classe captcha+submit+retry
+from tp3.utils.config import get_logger, setup_logging
+from tp3.utils.session import Session
+
+logger = get_logger(__name__)
+
+FLAG_RE = re.compile(rb"ESGI\{[^}]+\}")
 
 
 def breach_web(target: str) -> tuple[str, int, bytes]:
@@ -20,9 +27,40 @@ def breach_web(target: str) -> tuple[str, int, bytes]:
     return r["host"], int(r["port"]), r["key"].encode()
 
 
-def breach_network(host: str, port: int, key: bytes) -> str:
-    """Décode le flux base64+XOR en boucle, retourne le flag final."""
-    raise NotImplementedError            # ← la brique qu'il nous reste à écrire
+def xor(data: bytes, key: bytes) -> bytes:
+    """XOR à clé répétée."""
+    return bytes(b ^ key[i % len(key)] for i, b in enumerate(data))
+
+
+def decode_token(line: bytes, key: bytes) -> bytes:
+    """base64-decode puis XOR (ordre à confirmer sur un vrai jeton local)."""
+    return xor(base64.b64decode(line), key)
+
+
+def breach_network(host: str, port: int, key: bytes, timeout: int = 30) -> str:
+    """Connexion TCP unique, décode le flux en boucle, retourne le flag final."""
+    with socket.create_connection((host, port), timeout=timeout) as sock:
+        sock.settimeout(timeout)
+        buf = b""
+
+        while True:
+            while b"\n" not in buf:                  # lire jusqu'à une ligne complète
+                chunk = sock.recv(4096)
+                if not chunk:
+                    raise ConnectionError("serveur a fermé la connexion")
+                buf += chunk
+            line, buf = buf.split(b"\n", 1)          # garde le reste pour le tour suivant
+            line = line.strip()
+            if not line:
+                continue
+
+            m = FLAG_RE.search(line)                 # flag final ? on sort
+            if m:
+                return m.group(0).decode()
+
+            token = decode_token(line, key)          # sinon : décoder et répondre
+            sock.sendall(token + b"\n")
+            logger.info("round ok (%d octets)", len(token))
 
 
 def main() -> None:
@@ -30,6 +68,7 @@ def main() -> None:
     ap.add_argument("--target", default="http://127.0.0.1:8080")
     args = ap.parse_args()
 
+    setup_logging()
     logger.info("Starting TP3 - breach the target")   # stderr : progression
     host, port, key = breach_web(args.target)
     flag = breach_network(host, port, key)

@@ -1,6 +1,6 @@
 import re
 import requests
-from src.tp3.utils.captcha import Captcha
+from tp3.utils.captcha import Captcha
 
 
 class CaptchaError(RuntimeError):

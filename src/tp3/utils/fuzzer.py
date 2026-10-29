@@ -3,7 +3,9 @@ from pathlib import Path
 
 import requests
 
-from tp3.utils.config import logger
+from tp3.utils.config import get_logger
+
+logger = get_logger(__name__)
 
 WORDLIST = Path(__file__).parent / "wordlist.txt"   # SecLists common.txt, embarquée ici
 
