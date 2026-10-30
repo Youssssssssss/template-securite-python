@@ -2,6 +2,8 @@ import hashlib
 import math
 from collections import Counter
 
+import magic
+
 
 class Sample:
     def __init__(self, path):
@@ -24,10 +26,15 @@ class Sample:
         n = len(self.data)
         return -sum((c / n) * math.log2(c / n) for c in freq.values())
 
+    def file_type(self):
+        # magic lit les premiers octets : "PE32 executable...", "ELF 64-bit...", etc.
+        return magic.from_buffer(self.data)
+
     def get_file_metadata(self):
         return {
             "sha256": self.sha256(),
             "md5": self.md5(),
             "size": len(self.data),
+            "type": self.file_type(),
             "entropy": round(self.shannon_entropy(), 3),
         }
