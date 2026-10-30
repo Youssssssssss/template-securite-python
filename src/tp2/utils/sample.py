@@ -14,6 +14,8 @@ IP_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 DOMAIN_RE = re.compile(r"\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b", re.IGNORECASE)
 MUTEX_RE = re.compile(r"(?:Global|Local)\\[^\s\"']+")
 REGISTRY_RE = re.compile(r"(?:HKEY_[A-Z_]+|HKLM|HKCU)\\[^\s\"']+")
+# Le flag du TP est caché dans l'échantillon, au format ESGI{...}.
+FLAG_RE = re.compile(r"ESGI\{[^}]{1,200}\}")
 
 # Extensions courantes : on s'en sert pour éviter que "payload.bin" ou "cmd.exe"
 # soient pris pour des noms de domaine.
@@ -91,3 +93,10 @@ class Sample:
             "mutex": mutex,
             "registry": registry,
         }
+
+    def extract_flag(self):
+        # On cherche le flag dans les chaînes du fichier ; None si absent.
+        match = FLAG_RE.search("\n".join(self.strings))
+        if match:
+            return match.group(0)
+        return None

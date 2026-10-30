@@ -13,6 +13,7 @@ class Triage:
 
         meta = sample.get_file_metadata()
         iocs = sample.extract_iocs()
+        flag = sample.extract_flag()
 
         return {
             "sha256": meta["sha256"],
@@ -21,4 +22,5 @@ class Triage:
             "type": meta["type"],
             "entropy": meta["entropy"],
             "iocs": iocs,
+            "flag": flag,
         }
