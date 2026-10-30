@@ -4,38 +4,53 @@ import yara
 
 from tp2.utils.config import logger
 
-# Le dossier rules/ est à la racine du dépôt. On remonte depuis ce fichier
-# (src/tp2/utils/scanner.py) pour le retrouver même si l'outil est lancé
-# depuis un autre répertoire (c'est le cas du correcteur).
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_RULES = REPO_ROOT / "rules" / "course_rules.yar"
+# nos regles sont a la racine du depot ; on les garde en repli si le correcteur
+# ne passe pas de dossier --rules
+RACINE = Path(__file__).resolve().parents[3]
+DEFAUT = RACINE / "rules" / "course_rules.yar"
 
 
-def find_rules(rules_path):
-    # On teste plusieurs emplacements courants avant d'abandonner.
-    candidates = [
-        Path(rules_path),
-        DEFAULT_RULES,
-        Path.cwd() / "rules" / "course_rules.yar",
-    ]
-    for c in candidates:
-        if c.is_file():
-            return c
-    return None
+def fichiers_regles(source):
+    # source = dossier (--rules), fichier .yar, ou None
+    if source:
+        p = Path(source)
+        if p.is_dir():
+            return sorted(p.glob("*.yar")) + sorted(p.glob("*.yara"))
+        if p.is_file():
+            return [p]
+    return [DEFAUT] if DEFAUT.is_file() else []
 
 
 class YaraScanner:
-    def __init__(self, rules_path="rules/course_rules.yar"):
+    def __init__(self, source=None) -> None:
         self.rules = None
-        found = find_rules(rules_path)
-        if found is not None:
-            self.rules = yara.compile(filepath=str(found))
-            logger.info(f"Règles YARA chargées depuis {found}")
-        else:
-            logger.warning(f"Règles YARA introuvables (cherché: {rules_path})")
+        fichiers = fichiers_regles(source)
+        if not fichiers:
+            logger.warning("Regles YARA introuvables")
+            return
+        try:
+            # on compile tous les fichiers d'un coup (un namespace par fichier)
+            self.rules = yara.compile(filepaths={f.stem: str(f) for f in fichiers})
+            logger.info(f"Regles YARA chargees ({len(fichiers)} fichier(s))")
+        except yara.Error as e:
+            # un fichier casse ne doit pas tout faire planter : on compile un par un
+            logger.warning(f"Compilation YARA groupee KO ({e}), fichier par fichier")
+            self.rules = []
+            for f in fichiers:
+                try:
+                    self.rules.append(yara.compile(filepath=str(f)))
+                except yara.Error as e2:
+                    logger.warning(f"Regle ignoree {f}: {e2}")
 
-    def scan(self, data):
-        """Retourne les noms des règles YARA déclenchées."""
-        if self.rules is None:
+    def scan(self, data) -> list[str]:
+        """
+        Return the names of the YARA rules that matched
+        """
+        if not self.rules:
             return []
-        return [str(match.rule) for match in self.rules.match(data=data)]
+        if isinstance(self.rules, list):
+            noms = []
+            for r in self.rules:
+                noms += [str(m.rule) for m in r.match(data=data)]
+            return noms
+        return [str(m.rule) for m in self.rules.match(data=data)]
