@@ -1,27 +1,21 @@
-import math
-from collections import Counter
+import hashlib
 
 
 class Sample:
-    def __init__(self, path: str) -> None:
+    def __init__(self, path):
         self.path = path
-        self.data = open(path, "rb").read()
+        with open(path, "rb") as f:
+            self.data = f.read()
 
-    def get_file_metadata(self) -> dict:
-        """sha256, md5, taille, type de fichier, entropie de Shannon."""
-        raise NotImplementedError
+    def sha256(self):
+        return hashlib.sha256(self.data).hexdigest()
 
-    def shannon_entropy(self) -> float:
-        if not self.data:
-            return 0.0
-        freq = Counter(self.data)
-        n = len(self.data)
-        return -sum((c / n) * math.log2(c / n) for c in freq.values())
+    def md5(self):
+        return hashlib.md5(self.data).hexdigest()
 
-    def extract_iocs(self) -> dict:
-        """domaines, ips, urls, mutex, registry (regex sur les strings)."""
-        raise NotImplementedError
-
-    def parse_binary(self) -> dict:
-        """imports / sections via lief (si PE/ELF)."""
-        raise NotImplementedError
+    def get_file_metadata(self):
+        return {
+            "sha256": self.sha256(),
+            "md5": self.md5(),
+            "size": len(self.data),
+        }
