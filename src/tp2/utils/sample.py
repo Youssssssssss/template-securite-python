@@ -3,6 +3,7 @@ import math
 import re
 from collections import Counter
 
+import lief
 import magic
 
 # On récupère d'abord toutes les chaînes ASCII imprimables du fichier, puis on
@@ -100,3 +101,15 @@ class Sample:
         if match:
             return match.group(0)
         return None
+
+    def parse_binary(self):
+        # lief renvoie None si ce n'est pas un PE/ELF qu'il sait lire.
+        binary = lief.parse(self.path)
+        if binary is None:
+            return {}
+        return {
+            "format": str(binary.format).split(".")[-1],
+            "sections": [s.name for s in binary.sections],
+            "libraries": list(binary.libraries),
+            "imports": [f.name for f in binary.imported_functions][:200],
+        }

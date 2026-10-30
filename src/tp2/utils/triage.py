@@ -17,6 +17,7 @@ class Triage:
         iocs = sample.extract_iocs()
         flag = sample.extract_flag()
         yara_matches = self.scanner.scan(sample.data)
+        bininfo = sample.parse_binary()
 
         return {
             "sha256": meta["sha256"],
@@ -27,4 +28,5 @@ class Triage:
             "iocs": iocs,
             "yara_matches": yara_matches,
             "flag": flag,
+            "bin": bininfo,
         }
