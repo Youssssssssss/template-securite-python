@@ -37,8 +37,20 @@ def main():
         ap.error("aucun échantillon fourni (en positionnel ou avec -f/--file)")
 
     for sample in targets:
-        result = Triage(str(sample), args.llm).run()
-        Report(result).generate_json(f"{sample}.triage.json")
+        try:
+            result = Triage(str(sample), args.llm).run()
+        except Exception as exc:  # on ne veut pas qu'un échantillon casse les autres
+            logger.error(f"Triage échoué pour {sample}: {exc}")
+            continue
+
+        report = Report(result)
+        report.generate_json(f"{sample}.triage.json")
+        try:
+            report.generate_pdf(f"{sample}.triage.pdf")
+        except Exception as exc:
+            # Le PDF est le livrable "humain" ; s'il échoue, le JSON reste produit.
+            logger.warning(f"PDF non généré pour {sample}: {exc}")
+
         logger.info(f"Rapport écrit: {sample}.triage.json")
 
 
