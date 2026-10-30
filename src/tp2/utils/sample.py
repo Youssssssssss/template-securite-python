@@ -1,8 +1,32 @@
 import hashlib
 import math
+import re
 from collections import Counter
 
 import magic
+
+# On récupère d'abord toutes les chaînes ASCII imprimables du fichier, puis on
+# cherche les IOC dedans avec des regex. C'est l'approche "strings" classique.
+STRINGS_RE = re.compile(rb"[\x20-\x7e]{4,}")
+
+URL_RE = re.compile(r"https?://[^\s\"'<>]+")
+IP_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+DOMAIN_RE = re.compile(r"\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b", re.IGNORECASE)
+MUTEX_RE = re.compile(r"(?:Global|Local)\\[^\s\"']+")
+REGISTRY_RE = re.compile(r"(?:HKEY_[A-Z_]+|HKLM|HKCU)\\[^\s\"']+")
+
+# Extensions courantes : on s'en sert pour éviter que "payload.bin" ou "cmd.exe"
+# soient pris pour des noms de domaine.
+FILE_EXTENSIONS = {
+    "exe", "dll", "bin", "dat", "sys", "txt", "log", "tmp", "png", "jpg",
+    "gif", "json", "pdf", "zip", "ps1", "vbs", "bat", "scr", "ini", "cfg",
+}
+
+
+def looks_like_domain(candidate):
+    # Un vrai domaine ne finit pas par une extension de fichier connue.
+    tld = candidate.rsplit(".", 1)[-1].lower()
+    return tld not in FILE_EXTENSIONS
 
 
 class Sample:
@@ -10,6 +34,8 @@ class Sample:
         self.path = path
         with open(path, "rb") as f:
             self.data = f.read()
+        # On calcule les chaînes une seule fois, elles resservent partout.
+        self.strings = [m.decode("ascii") for m in STRINGS_RE.findall(self.data)]
 
     def sha256(self):
         return hashlib.sha256(self.data).hexdigest()
@@ -37,4 +63,31 @@ class Sample:
             "size": len(self.data),
             "type": self.file_type(),
             "entropy": round(self.shannon_entropy(), 3),
+        }
+
+    def extract_iocs(self):
+        blob = "\n".join(self.strings)
+
+        urls = sorted(set(URL_RE.findall(blob)))
+        ips = sorted(set(IP_RE.findall(blob)))
+
+        # Pour les domaines on enlève ce qui est en fait une IP ou un nom de fichier.
+        domains = []
+        for d in DOMAIN_RE.findall(blob):
+            if IP_RE.fullmatch(d):
+                continue
+            if not looks_like_domain(d):
+                continue
+            domains.append(d)
+        domains = sorted(set(domains))
+
+        mutex = sorted(set(MUTEX_RE.findall(blob)))
+        registry = sorted(set(REGISTRY_RE.findall(blob)))
+
+        return {
+            "domains": domains,
+            "ips": ips,
+            "urls": urls,
+            "mutex": mutex,
+            "registry": registry,
         }
