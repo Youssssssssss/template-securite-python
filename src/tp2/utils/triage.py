@@ -16,4 +16,5 @@ class Triage:
             "sha256": meta["sha256"],
             "md5": meta["md5"],
             "size": meta["size"],
+            "entropy": meta["entropy"],
         }
